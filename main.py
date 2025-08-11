@@ -16,8 +16,6 @@ import base64
 
 # 强制设置字体，避免字体问题
 import matplotlib.font_manager as fm
-# 完全重置字体管理器
-fm._rebuild()
 # 设置字体为系统默认
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.sans-serif'] = ['Arial', 'Helvetica', 'DejaVu Sans']
