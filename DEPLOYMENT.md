@@ -164,14 +164,22 @@ gunicorn -w 4 -b 0.0.0.0:8000 main:app
 ```nginx
 server {
     listen 80;
-    server_name your_domain_or_ip;
+    server_name your_domain.com www.your_domain.com;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    # 增加客户端最大请求体大小限制，适用于上传文件
+    client_max_body_size 100M;
+
+    # 日志配置
+    access_log /var/log/nginx/python-api-access.log;
+    error_log /var/log/nginx/python-api-error.log;
 }
 ```
 
@@ -182,6 +190,44 @@ sudo ln -s /etc/nginx/sites-available/python-api /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+### 域名解析配置
+
+1. 在您的域名注册商处添加A记录，将域名指向服务器IP：
+   - 记录类型：A
+   - 主机记录：@（或www）
+   - 记录值：您的服务器公网IP
+   - TTL：10分钟（或默认值）
+
+2. 等待DNS解析生效（通常需要几分钟到几小时）
+
+3. 测试域名访问：
+   ```bash
+   curl http://your_domain.com
+   ```
+
+### 配置HTTPS（推荐）
+
+1. 安装Certbot：
+   ```bash
+   # Ubuntu/Debian
+   sudo apt install certbot python3-certbot-nginx
+   
+   # CentOS/RHEL
+   sudo yum install certbot python3-certbot-nginx
+   ```
+
+2. 获取SSL证书：
+   ```bash
+   sudo certbot --nginx -d your_domain.com -d www.your_domain.com
+   ```
+
+3. 按提示操作，Certbot会自动修改Nginx配置并重启服务
+
+4. 测试HTTPS访问：
+   ```bash
+   curl https://your_domain.com
+   ```
 
 ## 故障排除
 
