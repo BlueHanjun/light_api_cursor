@@ -29,13 +29,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 强制设置字体，避免字体问题
-import matplotlib.font_manager as fm
-
-# 设置支持中文的字体
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial', 'Heiti TC', 'Hiragino Sans', 'PingFang SC', 'Helvetica', 'DejaVu Sans']
-plt.rcParams['axes.unicode_minus'] = False
 
 app = FastAPI(title="Python代码执行API", description="执行Python代码并返回生成的图片")
 
