@@ -65,6 +65,43 @@ async def execute_code(request: CodeRequest):
         # 记录代码执行开始
         logger.info(f"[{request_id}] 开始执行Python代码")
         
+        # 预处理代码，去除以```python开头和以```结尾的内容
+        code_to_execute = request.code
+        if code_to_execute.startswith('```python'):
+            code_to_execute = code_to_execute[9:]  # 去除开头的```python
+        if code_to_execute.endswith('```'):
+            code_to_execute = code_to_execute[:-3]  # 去除结尾的```
+        
+        # 处理单行代码的情况，将分号分隔的代码拆分为多行
+        if ';' in code_to_execute and '\n' not in code_to_execute:
+            code_to_execute = code_to_execute.replace('; ', '\n').replace(';', '\n')
+        
+        # 处理单行中的多个import语句
+        if 'import ' in code_to_execute and code_to_execute.count('import ') > 1 and '\n' not in code_to_execute:
+            # 将多个import语句分隔开
+            import_parts = code_to_execute.split('import ')
+            if import_parts[0] == '':
+                import_parts = import_parts[1:]
+            code_to_execute = '\n'.join([f'import {part}' for part in import_parts if part.strip()])
+        
+        # 修复缩进问题
+        lines = code_to_execute.split('\n')
+        # 移除空行和只包含空格的行
+        lines = [line for line in lines if line.strip()]
+        # 计算最小缩进
+        min_indent = float('inf')
+        for line in lines:
+            if line.strip():
+                indent = len(line) - len(line.lstrip())
+                min_indent = min(min_indent, indent)
+        # 如果所有行都有缩进，则移除公共缩进
+        if min_indent != float('inf') and min_indent > 0:
+            lines = [line[min_indent:] if len(line) >= min_indent else line for line in lines]
+        code_to_execute = '\n'.join(lines)
+        
+        # 替换plt.show()为plt.savefig()，确保在API环境中能够生成图片文件
+        code_to_execute = code_to_execute.replace('plt.show()', 'plt.savefig("output.png")')
+        
         # 创建安全的执行环境，预导入所有必要的库
         local_vars = {
             'plt': plt,
@@ -74,7 +111,47 @@ async def execute_code(request: CodeRequest):
             'base64': base64,
             'matplotlib': matplotlib,
             'sys': sys,
-            'traceback': traceback
+            'traceback': traceback,
+            'time': time
+        }
+        
+        # 定义允许的内置函数
+        allowed_builtins = {
+            '__import__': __import__,
+            'print': print,
+            'len': len,
+            'range': range,
+            'list': list,
+            'dict': dict,
+            'str': str,
+            'int': int,
+            'float': float,
+            'bool': bool,
+            'exec': exec,
+            'eval': eval,
+            'enumerate': enumerate,
+            'zip': zip,
+            'map': map,
+            'filter': filter,
+            'sum': sum,
+            'max': max,
+            'min': min,
+            'abs': abs,
+            'round': round,
+            'sorted': sorted,
+            'reversed': reversed,
+            'any': any,
+            'all': all,
+            'isinstance': isinstance,
+            'hasattr': hasattr,
+            'getattr': getattr,
+            'setattr': setattr,
+            'callable': callable,
+            'open': open,
+            'type': type,
+            'issubclass': issubclass,
+            'iter': iter,
+            'next': next
         }
         
         # 重定向标准输出和错误输出
@@ -83,7 +160,7 @@ async def execute_code(request: CodeRequest):
         
         with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
             # 执行代码，使用预配置的环境
-            exec(request.code, {"__builtins__": {"__import__": __import__, "print": print, "len": len, "range": range, "list": list, "dict": dict, "str": str, "int": int, "float": float, "bool": bool, "exec": exec, "eval": eval}}, local_vars)
+            exec(code_to_execute, {"__builtins__": allowed_builtins}, local_vars)
         
         # 记录代码执行完成
         logger.info(f"[{request_id}] Python代码执行完成")
@@ -93,8 +170,10 @@ async def execute_code(request: CodeRequest):
             # 获取当前图形
             fig = plt.gcf()
             
+            # 保存图片到临时文件
+            fig.savefig("output.png")
+            
             # 生成唯一的文件名
-            import time
             import os
             timestamp = int(time.time())
             filename = f"output_{timestamp}.png"
@@ -108,6 +187,11 @@ async def execute_code(request: CodeRequest):
             
             # 将图形保存到文件
             fig.savefig(filepath, format='png', dpi=150, bbox_inches='tight')
+            
+            # 确保文件写入完成
+            import os
+            with open(filepath, 'r') as f:
+                os.fsync(f.fileno())
             
             # 获取文件大小
             file_size = os.path.getsize(filepath)
