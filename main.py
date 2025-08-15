@@ -204,9 +204,9 @@ async def execute_code(request: CodeRequest):
             logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
             
             # 返回图片下载链接
-            download_url = f"http://localhost:8000/download/{filename}"
+            #download_url = f"http://localhost:8000/download/{filename}"
             # 部署阿里云时用这个
-            # download_url = f"http://114.55.226.87:8000/download/{filename}" 
+            download_url = f"http://114.55.226.87:8000/download/{filename}" 
             return {"download_url": download_url}
         else:
             # 如果没有生成图片，记录警告并返回错误信息
@@ -239,51 +239,7 @@ async def root():
         "endpoints": {
             "/execute-code": "POST - 执行Python代码并返回图片下载链接",
             "/download/{filename}": "GET - 下载生成的图片",
-            "/": "GET - 获取API信息",
-            "/health": "GET - 健康检查",
-            "/logs": "GET - 获取最近的日志记录"
-        },
-        "endpoint_details": {
-            "/execute-code": {
-                "method": "POST",
-                "description": "执行Python代码并返回生成的图片下载链接",
-                "request_body": {
-                    "code": "要执行的Python代码字符串",
-                    "timeout": "执行超时时间（秒），默认30秒"
-                },
-                "response": {
-                    "download_url": "生成的图片下载链接"
-                },
-                "notes": "代码中应包含matplotlib绘图代码以生成图片"
-            },
-            "/download/{filename}": {
-                "method": "GET",
-                "description": "下载生成的图片",
-                "parameters": {
-                    "filename": "图片文件名"
-                },
-                "response": "图片文件(PNG格式)"
-            },
-            "/health": {
-                "method": "GET",
-                "description": "健康检查接口",
-                "response": {
-                    "status": "服务状态",
-                    "message": "API运行状态信息"
-                }
-            },
-            "/logs": {
-                "method": "GET",
-                "description": "获取最近的日志记录",
-                "parameters": {
-                    "limit": "返回日志行数，默认100"
-                },
-                "response": {
-                    "total_lines": "日志总行数",
-                    "returned_lines": "返回行数",
-                    "logs": "日志内容列表"
-                }
-            }
+            "/": "GET - 获取API信息"
         },
         "usage": "向/execute-code发送POST请求，包含Python代码，API将执行代码并返回生成的图片下载链接"
     }
