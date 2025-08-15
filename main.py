@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
 import io
 import sys
@@ -203,12 +203,11 @@ async def execute_code(request: CodeRequest):
             total_time = time.time() - start_time
             logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
             
-            # 返回图片
-            return Response(
-                content=img_buffer.getvalue(),
-                media_type="image/png",
-                headers={"Content-Disposition": f"attachment; filename={filename}"}
-            )
+            # 返回图片下载链接
+            download_url = f"http://localhost:8000/download/{filename}"
+            # 部署阿里云时用这个
+            # download_url = f"http://114.55.226.87:8000/download/{filename}" 
+            return {"download_url": download_url}
         else:
             # 如果没有生成图片，记录警告并返回错误信息
             logger.warning(f"[{request_id}] 代码执行成功但未生成图片")
@@ -238,10 +237,11 @@ async def root():
     return {
         "message": "Python代码执行API",
         "endpoints": {
-            "/execute-code": "POST - 执行Python代码并返回图片",
+            "/execute-code": "POST - 执行Python代码并返回图片下载链接",
+            "/download/{filename}": "GET - 下载生成的图片",
             "/": "GET - 获取API信息"
         },
-        "usage": "向/execute-code发送POST请求，包含Python代码，API将执行代码并返回生成的图片"
+        "usage": "向/execute-code发送POST请求，包含Python代码，API将执行代码并返回生成的图片下载链接"
     }
 
 @app.get("/health")
@@ -268,6 +268,28 @@ async def get_logs(limit: int = 100):
     except Exception as e:
         logger.error(f"读取日志文件失败: {str(e)}")
         return {"error": f"读取日志失败: {str(e)}"}
+
+@app.get("/download/{filename}")
+async def download_image(filename: str):
+    """
+    下载生成的图片
+    
+    参数:
+    - filename: 图片文件名
+    
+    返回:
+    - 图片文件
+    """
+    import os
+    filepath = os.path.join("picture", filename)
+    
+    # 检查文件是否存在
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="图片文件不存在")
+    
+    # 返回文件
+    return FileResponse(filepath, media_type="image/png", filename=filename)
+
 
 if __name__ == "__main__":
     import uvicorn
