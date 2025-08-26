@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
 import io
 import sys
 import traceback
@@ -32,15 +31,6 @@ logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title="Python代码执行API", description="执行Python代码并返回生成的图片")
-
-# 添加CORS中间件，允许跨域访问
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源
-    allow_credentials=True,
-    allow_methods=["*"],  # 允许所有方法
-    allow_headers=["*"],  # 允许所有头部
-)
 
 class CodeRequest(BaseModel):
     code: str
@@ -241,21 +231,17 @@ async def execute_code(request: CodeRequest):
             logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
             
             # 返回图片下载链接
-            #download_url = f"http://localhost:8000/download/{filename}"
-            # 部署阿里云时用这个
+            # download_url = f"http://localhost:8000/download/{filename}"
+            # 部署阿里云时用这个 好难
             download_url = f"http://114.55.226.87:8000/download/{filename}" 
-            return {"download_url": download_url, "message": "图片生成成功"}
+            return {"download_url": download_url}
         else:
-            # 如果没有生成图片，记录警告并返回成功信息
+            # 如果没有生成图片，记录警告并返回错误信息
             logger.warning(f"[{request_id}] 代码执行成功但未生成图片")
-            # 清理图形
-            plt.close('all')
-            
-            # 计算总耗时
-            total_time = time.time() - start_time
-            logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
-            
-            return {"message": "代码执行成功但未生成图片。如果需要生成图片，请确保代码中包含matplotlib绘图代码。"}
+            raise HTTPException(
+                status_code=400, 
+                detail="代码执行成功但未生成图片。请确保代码中包含matplotlib绘图代码。"
+            )
             
     except Exception as e:
         # 记录错误信息
@@ -328,8 +314,8 @@ async def download_image(filename: str):
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="图片文件不存在")
     
-    # 返回文件，移除filename参数以允许浏览器预览而不是下载
-    return FileResponse(filepath, media_type="image/png")
+    # 返回文件
+    return FileResponse(filepath, media_type="image/png", filename=filename)
 
 
 if __name__ == "__main__":
