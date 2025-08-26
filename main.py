@@ -241,9 +241,9 @@ async def execute_code(request: CodeRequest):
             logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
             
             # 返回图片下载链接
-            download_url = f"http://localhost:8000/download/{filename}"
+            #download_url = f"http://localhost:8000/download/{filename}"
             # 部署阿里云时用这个
-            #download_url = f"http://114.55.226.87:8000/download/{filename}" 
+            download_url = f"http://114.55.226.87:8000/download/{filename}" 
             return {"download_url": download_url}
         else:
             # 如果没有生成图片，记录警告并返回错误信息
