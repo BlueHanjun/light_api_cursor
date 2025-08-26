@@ -91,31 +91,8 @@ async def execute_code(request: CodeRequest):
         
         # 修复缩进问题
         import textwrap
-        # 如果第一行没有缩进，但其他行有缩进，需要特殊处理
-        lines = code_to_execute.split('\n')
-        # 移除前后的空行
-        while lines and not lines[0].strip():
-            lines.pop(0)
-        while lines and not lines[-1].strip():
-            lines.pop()
-        
-        # 如果第一行没有缩进，但其他行有缩进，先给第一行添加缩进
-        if lines and not lines[0].startswith(' ') and not lines[0].startswith('\t'):
-            # 检查其他行是否有缩进
-            for line in lines[1:]:
-                if line.strip() and (line.startswith(' ') or line.startswith('\t')):
-                    # 给第一行添加与第二行相同的缩进
-                    indent = ''
-                    for char in line:
-                        if char in [' ', '\t']:
-                            indent += char
-                        else:
-                            break
-                    lines[0] = indent + lines[0]
-                    break
-        
-        code_to_execute = '\n'.join(lines)
-        code_to_execute = textwrap.dedent(code_to_execute)
+        # 使用textwrap.dedent来处理缩进问题
+        code_to_execute = textwrap.dedent(code_to_execute).strip()
         
         # 添加调试日志
         logger.info("缩进处理后的代码:")
@@ -211,7 +188,10 @@ async def execute_code(request: CodeRequest):
             filepath = os.path.join("picture", filename)
             
             # 确保picture文件夹存在
-            os.makedirs("picture", exist_ok=True)
+            import os
+            if not os.path.exists("picture"):
+                os.makedirs("picture")
+            logger.info(f"[{request_id}] picture文件夹路径: {os.path.abspath('picture')}")
             
             # 记录图片保存开始
             logger.info(f"[{request_id}] 开始保存图片到文件: {filepath}")
