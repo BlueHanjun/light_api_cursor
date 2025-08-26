@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 import io
 import sys
 import traceback
@@ -32,6 +33,15 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Python代码执行API", description="执行Python代码并返回生成的图片")
 
+# 添加CORS中间件，允许跨域访问
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有来源
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有方法
+    allow_headers=["*"],  # 允许所有头部
+)
+
 class CodeRequest(BaseModel):
     code: str
     timeout: int = 30  # 执行超时时间（秒）
@@ -60,11 +70,12 @@ async def execute_code(request: CodeRequest):
         logger.info(f"[{request_id}] 开始执行Python代码")
         
         # 预处理代码，去除以```python开头和以```结尾的内容
-        code_to_execute = request.code
+        code_to_execute = request.code.strip()  # 先去除前后的空白字符
         if code_to_execute.startswith('```python'):
             code_to_execute = code_to_execute[9:]  # 去除开头的```python
         if code_to_execute.endswith('```'):
             code_to_execute = code_to_execute[:-3]  # 去除结尾的```
+        code_to_execute = code_to_execute.strip()  # 再次去除前后的空白字符
         
         # 处理单行代码的情况，将分号分隔的代码拆分为多行
         if ';' in code_to_execute and '\n' not in code_to_execute:
@@ -79,22 +90,42 @@ async def execute_code(request: CodeRequest):
             code_to_execute = '\n'.join([f'import {part}' for part in import_parts if part.strip()])
         
         # 修复缩进问题
+        import textwrap
+        # 如果第一行没有缩进，但其他行有缩进，需要特殊处理
         lines = code_to_execute.split('\n')
-        # 移除空行和只包含空格的行
-        lines = [line for line in lines if line.strip()]
-        # 计算最小缩进
-        min_indent = float('inf')
-        for line in lines:
-            if line.strip():
-                indent = len(line) - len(line.lstrip())
-                min_indent = min(min_indent, indent)
-        # 如果所有行都有缩进，则移除公共缩进
-        if min_indent != float('inf') and min_indent > 0:
-            lines = [line[min_indent:] if len(line) >= min_indent else line for line in lines]
+        # 移除前后的空行
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        
+        # 如果第一行没有缩进，但其他行有缩进，先给第一行添加缩进
+        if lines and not lines[0].startswith(' ') and not lines[0].startswith('\t'):
+            # 检查其他行是否有缩进
+            for line in lines[1:]:
+                if line.strip() and (line.startswith(' ') or line.startswith('\t')):
+                    # 给第一行添加与第二行相同的缩进
+                    indent = ''
+                    for char in line:
+                        if char in [' ', '\t']:
+                            indent += char
+                        else:
+                            break
+                    lines[0] = indent + lines[0]
+                    break
+        
         code_to_execute = '\n'.join(lines)
+        code_to_execute = textwrap.dedent(code_to_execute)
+        
+        # 添加调试日志
+        logger.info("缩进处理后的代码:")
+        for i, line in enumerate(code_to_execute.split('\n')):
+            logger.info(f"  {i+1}: {repr(line)}")
         
         # 替换plt.show()为plt.savefig()，确保在API环境中能够生成图片文件
         code_to_execute = code_to_execute.replace('plt.show()', 'plt.savefig("output.png")')
+        
+        logger.info(f"处理后的代码: {code_to_execute}")
         
         # 创建安全的执行环境，预导入所有必要的库
         local_vars = {
@@ -152,12 +183,18 @@ async def execute_code(request: CodeRequest):
         stdout_capture = io.StringIO()
         stderr_capture = io.StringIO()
         
+        # 记录执行前的图形数量
+        logger.info(f"[{request_id}] 执行前 plt.get_fignums(): {plt.get_fignums()}")
+        
         with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
             # 执行代码，使用预配置的环境
             exec(code_to_execute, {"__builtins__": allowed_builtins}, local_vars)
         
         # 记录代码执行完成
         logger.info(f"[{request_id}] Python代码执行完成")
+        
+        # 记录执行后的图形数量
+        logger.info(f"[{request_id}] 执行后 plt.get_fignums(): {plt.get_fignums()}")
         
         # 检查是否有matplotlib图形
         if plt.get_fignums():
@@ -204,9 +241,9 @@ async def execute_code(request: CodeRequest):
             logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
             
             # 返回图片下载链接
-            #download_url = f"http://localhost:8000/download/{filename}"
+            download_url = f"http://localhost:8000/download/{filename}"
             # 部署阿里云时用这个
-            download_url = f"http://114.55.226.87:8000/download/{filename}" 
+            #download_url = f"http://114.55.226.87:8000/download/{filename}" 
             return {"download_url": download_url}
         else:
             # 如果没有生成图片，记录警告并返回错误信息
@@ -287,8 +324,8 @@ async def download_image(filename: str):
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="图片文件不存在")
     
-    # 返回文件
-    return FileResponse(filepath, media_type="image/png", filename=filename)
+    # 返回文件，移除filename参数以允许浏览器预览而不是下载
+    return FileResponse(filepath, media_type="image/png")
 
 
 if __name__ == "__main__":
