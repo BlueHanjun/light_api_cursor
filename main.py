@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import Response, FileResponse
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 import io
 import sys
 import traceback
@@ -31,6 +32,15 @@ logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title="Python代码执行API", description="执行Python代码并返回生成的图片")
+
+# 添加CORS支持
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class CodeRequest(BaseModel):
     code: str
