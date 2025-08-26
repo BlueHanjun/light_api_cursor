@@ -244,14 +244,18 @@ async def execute_code(request: CodeRequest):
             #download_url = f"http://localhost:8000/download/{filename}"
             # 部署阿里云时用这个
             download_url = f"http://114.55.226.87:8000/download/{filename}" 
-            return {"download_url": download_url}
+            return {"download_url": download_url, "message": "图片生成成功"}
         else:
-            # 如果没有生成图片，记录警告并返回错误信息
+            # 如果没有生成图片，记录警告并返回成功信息
             logger.warning(f"[{request_id}] 代码执行成功但未生成图片")
-            raise HTTPException(
-                status_code=400, 
-                detail="代码执行成功但未生成图片。请确保代码中包含matplotlib绘图代码。"
-            )
+            # 清理图形
+            plt.close('all')
+            
+            # 计算总耗时
+            total_time = time.time() - start_time
+            logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
+            
+            return {"message": "代码执行成功但未生成图片。如果需要生成图片，请确保代码中包含matplotlib绘图代码。"}
             
     except Exception as e:
         # 记录错误信息
