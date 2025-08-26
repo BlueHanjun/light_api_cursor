@@ -5,8 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import io
 import sys
 import traceback
-import io
-import sys
 from contextlib import redirect_stdout, redirect_stderr
 import matplotlib
 matplotlib.use('Agg')  # 使用非交互式后端
@@ -213,6 +211,9 @@ async def execute_code(request: CodeRequest):
             fig.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
             img_buffer.seek(0)
             
+            # 获取图片的base64编码
+            img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+            
             # 清理图形
             plt.close('all')
             
@@ -220,11 +221,11 @@ async def execute_code(request: CodeRequest):
             total_time = time.time() - start_time
             logger.info(f"[{request_id}] 请求处理完成，总耗时: {total_time:.3f}秒")
             
-            # 返回图片下载链接
+            # 返回图片下载链接和图片二进制数据的base64编码
             # download_url = f"http://localhost:8000/download/{filename}"
             # 部署阿里云时用这个 好难
             download_url = f"http://114.55.226.87:8000/download/{filename}" 
-            return {"download_url": download_url}
+            return {"download_url": download_url, "image_data": img_base64}
         else:
             # 如果没有生成图片，记录警告并返回错误信息
             logger.warning(f"[{request_id}] 代码执行成功但未生成图片")
